@@ -1,6 +1,6 @@
 {
-  "name": "@nicolaischmid/tr064",
-  "version": "0.4.1",
+  "name": "@seydx/tr064",
+  "version": "0.4.1-2",
   "author": "Nicolai Schmid <hey@schmid.uno>",
   "description": "TR-064 - UPnP/IGD for node.js",
   "scripts": {
@@ -12,8 +12,8 @@
     "count": "wasc-tools count",
     "todo": "wasc-tools todo"
   },
-  "main": "build/index.cjs.js",
-  "module": "build/index.esm.js",
+  "main": "src/index.js",
+  "module": "src/index.js",
   "publishConfig": {
     "access": "public"
   },
