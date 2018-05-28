@@ -3,7 +3,8 @@ const crypto = require("crypto");
 const s = require("./Service");
 
 class Device {
-	constructor(deviceInfo){
+	constructor(deviceInfo, config){
+		this.config = config;
 		this.meta = deviceInfo;
 		this.meta.servicesInfo = [];
 		this.services = {};
@@ -108,11 +109,8 @@ class Device {
 					}
 					delete self.meta.deviceList;
 					delete self.meta.serviceList;
-
-					//console.log(results)
 					resolve(self);
 				} else {
-					//console.log(err)
 					reject(err);
 				}
 			});
@@ -122,7 +120,8 @@ class Device {
 	}
 
 	_addService(serviceData, callback){
-		new s.Service(this, serviceData, callback);
+		const self = this;
+		new s.Service(this, serviceData, self.config, callback);
 	}
 
 	_getSSLPort(cb){
