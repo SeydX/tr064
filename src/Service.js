@@ -2,7 +2,7 @@ var parseString = require("xml2js").parseString;
 var request = require("request");
 
 class Service{
-	constructor(device, serviceInfo, callback){
+	constructor(device, serviceInfo, config, callback){
 		this.host = device.meta.host;
 		this.port = device.meta.port;
 		this.device = device;
@@ -12,6 +12,7 @@ class Service{
 		this.actions = {};
 		this.stateVariables = {};
 		this.logAttempts = [];
+		this.config = config;
 		this._parseSCPD(this);
 	}
 
@@ -219,7 +220,7 @@ class Service{
 					"Content-Type": "text/xml; charset=\"utf-8\"",
 				},
 				body: body,
-				timeout: 5000,
+				timeout: self.config.timeout,
 			},
 			function(error, response, body) {
 				if (!error && response.statusCode == 200) {
@@ -239,7 +240,7 @@ class Service{
 									challange = true;
 									if (self.logAttempts.length) {
 										for (const i in self.logAttempts) {
-											if ((self.logAttempts[i].service = serviceType)) {
+											if ((self.logAttempts[i].service == serviceType && self.logAttempts[i].action == action)) {
 												if (self.logAttempts[i].attempts >= 1) {
 													error = new Error("Credentials incorrect");
 												} else {
@@ -269,7 +270,7 @@ class Service{
 											}
 										}
 									} else {
-										self.logAttempts.push({ service: serviceType, attempts: 1 });
+										self.logAttempts.push({ service: serviceType, action: action, attempts: 1 });
 										device._auth.sn = ch.Nonce;
 										device._auth.realm = ch.Realm;
 										device._auth.auth = device._calcAuthDigest(
@@ -295,7 +296,7 @@ class Service{
 								} else if (header["h:NextChallenge"]) {
 									var nx = header["h:NextChallenge"];
 									for (const i in self.logAttempts) {
-										if ((self.logAttempts[i].service = serviceType)) {
+										if ((self.logAttempts[i].service == serviceType && self.logAttempts[i].action == action)) {
 											self.logAttempts[i].attempts = 0;
 										}
 									}
@@ -322,7 +323,8 @@ class Service{
 									}
 								} else if (body["s:Fault"]) {
 									var fault = body["s:Fault"];
-									error = new Error("Device responded with fault " + error);
+									let errorStatus = body['s:Fault'].detail.UPnPError.errorDescription;
+									error = new Error("Device responded with fault: " + errorStatus);
 									res = fault;
 								}
 							}
