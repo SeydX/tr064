@@ -15,6 +15,7 @@ class TR064 {
 		this.port = config.port;
 		this.username = config.username;
 		this.password = config.password;
+		this.config = config;
 	}
 	
 	initDevice(type){
@@ -45,7 +46,7 @@ class TR064 {
 							devInfo.port = self.port;
 							var path = URL.parse(nurl).pathname;
 							devInfo.urlPart = path.substring(0, path.lastIndexOf("/"));
-							const newDevice = new d.Device(devInfo);
+							const newDevice = new d.Device(devInfo, self.config);
 							newDevice._parseServices()
 								.then(result => {
 									resolve(result);
