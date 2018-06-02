@@ -326,8 +326,6 @@ class Service{
                   //let errorStatus = body['s:Fault'].detail.UPnPError.errorDescription;
                   let newFault = body['s:Fault'];
                   error = {
-                    response: response.statusMessage,
-                    responseCode: response.statusCode,
                     tr064: newFault.detail.UPnPError.errorDescription,
                     tr064code: newFault.detail.UPnPError.errorCode,
                     fault: newFault.faultstring,
