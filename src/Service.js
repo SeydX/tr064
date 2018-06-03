@@ -326,10 +326,12 @@ class Service{
                   //let errorStatus = body['s:Fault'].detail.UPnPError.errorDescription;
                   let newFault = body['s:Fault'];
                   error = {
-                    tr064: newFault.detail.UPnPError.errorDescription,
-                    tr064code: newFault.detail.UPnPError.errorCode,
-                    fault: newFault.faultstring,
-                    faultcode: newFault.faultcode,
+                    response: response ? response.statusMessage : 'No message',
+                    responseCode: response ? response.statusCode : 'No code',
+                    tr064: newFault ? newFault.detail.UPnPError.errorDescription : 'No message',
+                    tr064code: newFault ? newFault.detail.UPnPError.errorCode : 'No code',
+                    fault: newFault ? newFault.faultstring : 'No message',
+                    faultcode: newFault ? newFault.faultcode : 'No code',
                     serviceType: serviceType,
                     action: action
                   };
@@ -347,13 +349,14 @@ class Service{
                 let newBody = env['s:Body'];
                 if(newBody['s:Fault']){
                   let fault = newBody['s:Fault'];
+                  let newFault = body['s:Fault'];
                   error = {
-                    response: response.statusMessage,
-                    responseCode: response.statusCode,
-                    tr064: fault.detail.UPnPError.errorDescription,
-                    tr064code: fault.detail.UPnPError.errorCode,
-                    fault: fault.faultstring,
-                    faultcode: fault.faultcode,
+                    error: error ? error.errno : 'No message',
+                    errorCode: error ? error.errno : 'No code',
+                    tr064: newFault ? newFault.detail.UPnPError.errorDescription : 'No message',
+                    tr064code: newFault ? newFault.detail.UPnPError.errorCode : 'No code',
+                    fault: newFault ? newFault.faultstring : 'No message',
+                    faultcode: newFault ? newFault.faultcode : 'No code',
                     serviceType: serviceType,
                     action: action
                   };
@@ -361,8 +364,8 @@ class Service{
               }
             } else {
               error = {
-                response: response.statusMessage,
-                responseCode: response.statusCode,
+                error: error ? error.errno : 'No message',
+                errorCode: error ? error.errno : 'No code',
                 serviceType: serviceType,
                 action: action
               };
