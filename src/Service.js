@@ -13,6 +13,7 @@ class Service{
     this.stateVariables = {};
     this.logAttempts = [];
     this.config = config;
+    this.timeout=config.timeout*1000||5000;
     this._parseSCPD(this);
   }
 
@@ -342,26 +343,25 @@ class Service{
             }
           );
         } else {
-          parseString(body,{explicitArray: false,}, function (err, result) {
+          parseString(response.body,{explicitArray: false,}, function (err, result) {
             if(!err){
-              let env = result['s:Envelope'];
-              if(env['s:Body']){
-                let newBody = env['s:Body'];
-                if(newBody['s:Fault']){
-                  let fault = newBody['s:Fault'];
-                  let newFault = body['s:Fault'];
-                  error = {
-                    error: error ? error.errno : 'No message',
-                    errorCode: error ? error.errno : 'No code',
-                    tr064: newFault ? newFault.detail.UPnPError.errorDescription : 'No message',
-                    tr064code: newFault ? newFault.detail.UPnPError.errorCode : 'No code',
-                    fault: newFault ? newFault.faultstring : 'No message',
-                    faultcode: newFault ? newFault.faultcode : 'No code',
-                    serviceType: serviceType,
-                    action: action
-                  };
-                }
-              }
+	          let env = result['s:Envelope'];  
+	          if(env['s:Body']){
+		          let newBody = env['s:Body'];
+		          if(newBody['s:Fault']){
+			          let fault = newBody['s:Fault'];
+	                  error = {
+	                    error: error ? error.errno : 'No message',
+	                    errorCode: error ? error.errno : 'No code',
+	                    tr064: fault ? fault.detail.UPnPError.errorDescription : 'No message',
+	                    tr064code: fault ? fault.detail.UPnPError.errorCode : 'No code',
+	                    fault: fault ? fault.faultstring : 'No message',
+	                    faultcode: fault ? fault.faultcode : 'No code',
+	                    serviceType: serviceType,
+	                    action: action
+	                  };
+			      }
+		      }  
             } else {
               error = {
                 error: error ? error.errno : 'No message',
