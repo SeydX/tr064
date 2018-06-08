@@ -343,35 +343,45 @@ class Service{
             }
           );
         } else {
-          parseString(response.body,{explicitArray: false,}, function (err, result) {
-            if(!err){
-	          let env = result['s:Envelope'];  
-	          if(env['s:Body']){
-		          let newBody = env['s:Body'];
-		          if(newBody['s:Fault']){
-			          let fault = newBody['s:Fault'];
-	                  error = {
-	                    error: error ? error.errno : 'No message',
-	                    errorCode: error ? error.errno : 'No code',
-	                    tr064: fault ? fault.detail.UPnPError.errorDescription : 'No message',
-	                    tr064code: fault ? fault.detail.UPnPError.errorCode : 'No code',
-	                    fault: fault ? fault.faultstring : 'No message',
-	                    faultcode: fault ? fault.faultcode : 'No code',
-	                    serviceType: serviceType,
-	                    action: action
-	                  };
-			      }
-		      }  
-            } else {
-              error = {
-                error: error ? error.errno : 'No message',
-                errorCode: error ? error.errno : 'No code',
-                serviceType: serviceType,
-                action: action
-              };
-            }
-          });
-          callback(error, null);
+          if(response){
+            parseString(response.body,{explicitArray: false,}, function (err, result) {
+              if(!err){
+                let env = result['s:Envelope'];  
+                if(env['s:Body']){
+                  let newBody = env['s:Body'];
+                  if(newBody['s:Fault']){
+                    let fault = newBody['s:Fault'];
+                    error = {
+                      error: error ? error.errno : 'No message',
+                      errorCode: error ? error.errno : 'No code',
+                      tr064: fault ? fault.detail.UPnPError.errorDescription : 'No message',
+                      tr064code: fault ? fault.detail.UPnPError.errorCode : 'No code',
+                      fault: fault ? fault.faultstring : 'No message',
+                      faultcode: fault ? fault.faultcode : 'No code',
+                      serviceType: serviceType,
+                      action: action
+                    };
+                  }
+                }  
+              } else {
+                error = {
+                  error: error ? error.errno : 'No message',
+                  errorCode: error ? error.errno : 'No code',
+                  serviceType: serviceType,
+                  action: action
+                };
+              }
+            });
+            callback(error, null);
+          } else {
+            error = {
+              error: error ? error.errno : 'No message',
+              errorCode: error ? error.errno : 'No code',
+              serviceType: serviceType,
+              action: action
+            };
+            callback(error, null);
+          }
         }
       }
     );
