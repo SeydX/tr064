@@ -375,8 +375,8 @@ class Service{
             callback(error, null);
           } else {
             error = {
-              error: error ? error.errno : 'No message',
-              errorCode: error ? error.errno : 'No code',
+              error: error ? error.code : 'No message',
+              errorCode: error ? error.code : 'No code',
               serviceType: serviceType,
               action: action
             };
