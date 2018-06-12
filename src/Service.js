@@ -14,6 +14,7 @@ class Service{
     this.logAttempts = [];
     this.config = config;
     this.timeout=config.timeout*1000||5000;
+    this.waitForAuth = {};
     this._parseSCPD(this);
   }
 
@@ -134,11 +135,23 @@ class Service{
 
   _sendSOAPActionRequest(device,url,serviceType,action,inArguments,outArguments,vars,callback){
     const self = this;
-    var head = '';
-    if (device._auth.uid) {
+    
+    if(!Object.keys(self.waitForAuth).length||
+    (serviceType	==	self.waitForAuth.serviceType&&
+     action			==	self.waitForAuth.action&&
+     vars			==	self.waitForAuth.vars&&
+     url			==	self.waitForAuth.url)&&
+     inArguments 	== 	self.waitForAuth.inArguments&&
+     outArguments 	== 	self.waitForAuth.outArguments){
+    
+      var head = '';
+      if (device._auth.uid) {
       // Content Level Authentication
-      if (device._auth.auth) {
-        head = '<s:Header>' +
+        if (device._auth.auth) {
+      
+          self.waitForAuth = {};  
+      
+          head = '<s:Header>' +
                '<h:ClientAuth xmlns:h="http://soap-authentication.org/digest/2001/10/"' +
                's:mustUnderstand="1">' +
                '<Nonce>' +
@@ -155,9 +168,19 @@ class Service{
                '</Realm>' +
                '</h:ClientAuth>' +
                '</s:Header>';
-      } else {
-        // First Auth
-        head = ' <s:Header>' +
+        } else {
+      
+          self.waitForAuth = {
+            serviceType:serviceType, 
+            action:action,
+            vars:vars,
+            url:url,
+            inArguments:inArguments,
+            outArguments:outArguments
+          };  
+      
+          // First Auth
+          head = ' <s:Header>' +
                '<h:InitChallenge xmlns:h="http://soap-authentication.org/digest/2001/10/"' +
                's:mustUnderstand="1">' +
                '<UserID>' +
@@ -168,10 +191,10 @@ class Service{
                '</Realm>' +
                '</h:InitChallenge>' +
                '</s:Header>';
+        }
       }
-    }
 
-    var body = '<?xml version="1.0" encoding="utf-8"?>' +
+      var body = '<?xml version="1.0" encoding="utf-8"?>' +
                '<s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s=" http://schemas.xmlsoap.org/soap/envelope/">' +
                head +
                '<s:Body>' +
@@ -181,211 +204,224 @@ class Service{
                serviceType +
                '">';
 
-    for (var i in vars) {
-      body += '<' + vars[i].name + '>';
-      body += vars[i].value;
-      body += '</' + vars[i].name + '>';
-    }
-
-    body = body + '</u:' + action + '>' + '</s:Body>' + '</s:Envelope>';
-
-    var port = 0,
-      proto = '',
-      agentOptions = null;
-    if (device._sslPort) {
-      port = device._sslPort;
-      proto = 'https://';
-      if (device._ca) {
-        agentOptions = {
-          ca: device._ca,
-        };
-      } else {
-        agentOptions = {
-          rejectUnauthorized: false,
-        }; // Allow selfsignd Certs
+      for (var i in vars) {
+        body += '<' + vars[i].name + '>';
+        body += vars[i].value;
+        body += '</' + vars[i].name + '>';
       }
-    } else {
-      proto = 'http://';
-      port = device.meta.port;
-    }
-    var uri = proto + device.meta.host + ':' + port + url;
-    var that = this;
 
-    request(
-      {
-        method: 'POST',
-        uri: uri,
-        agentOptions: agentOptions,
-        headers: {
-          SoapAction: serviceType + '#' + action,
-          'Content-Type': 'text/xml; charset="utf-8"',
+      body = body + '</u:' + action + '>' + '</s:Body>' + '</s:Envelope>';
+
+      var port = 0,
+        proto = '',
+        agentOptions = null;
+      if (device._sslPort) {
+        port = device._sslPort;
+        proto = 'https://';
+        if (device._ca) {
+          agentOptions = {
+            ca: device._ca,
+          };
+        } else {
+          agentOptions = {
+            rejectUnauthorized: false,
+          }; // Allow selfsignd Certs
+        }
+      } else {
+        proto = 'http://';
+        port = device.meta.port;
+      }
+      var uri = proto + device.meta.host + ':' + port + url;
+      var that = this;
+
+      request(
+        {
+          method: 'POST',
+          uri: uri,
+          agentOptions: agentOptions,
+          headers: {
+            SoapAction: serviceType + '#' + action,
+            'Content-Type': 'text/xml; charset="utf-8"',
+          },
+          body: body,
+          timeout: self.config.timeout,
         },
-        body: body,
-        timeout: self.config.timeout,
-      },
-      function(error, response, body) {
-        if (!error && response.statusCode == 200) {
-          parseString(
-            body,
-            {
-              explicitArray: false,
-            },
-            function(err, result) {
-              var challange = false;
-              var res = {};
-              var env = result['s:Envelope'];
-              if (env['s:Header']) {
-                var header = env['s:Header'];
-                if (header['h:Challenge']) {
-                  var ch = header['h:Challenge'];
-                  challange = true;
-                  if (self.logAttempts.length) {
-                    for (const i in self.logAttempts) {
-                      if ((self.logAttempts[i].service == serviceType && self.logAttempts[i].action == action)) {
-                        if (self.logAttempts[i].attempts >= 1) {
-                          error = new Error('Credentials incorrect');
-                        } else {
-                          self.logAttempts[i].attempts += 1;
-                          device._auth.des = serviceType;
-                          device._auth.sn = ch.Nonce;
-                          device._auth.realm = ch.Realm;
-                          device._auth.auth = device._calcAuthDigest(
-                            device._auth.uid,
-                            device._auth.pwd,
-                            device._auth.realm,
-                            device._auth.sn
-                          );
-                          device._auth.chCount++;
-                          that._sendSOAPActionRequest(
-                            device,
-                            url,
-                            serviceType,
-                            action,
-                            inArguments,
-                            outArguments,
-                            vars,
-                            callback
-                          );
-                          return;
+        function(error, response, body) {
+          if (!error && response.statusCode == 200) {
+            parseString(
+              body,
+              {
+                explicitArray: false,
+              },
+              function(err, result) {
+                var challange = false;
+                var res = {};
+                var env = result['s:Envelope'];
+                if (env['s:Header']) {
+                  var header = env['s:Header'];
+                  if (header['h:Challenge']) {
+                    var ch = header['h:Challenge'];
+                    challange = true;
+                    if (self.logAttempts.length) {
+                      for (const i in self.logAttempts) {
+                        if ((self.logAttempts[i].service == serviceType && self.logAttempts[i].action == action)) {
+                          if (self.logAttempts[i].attempts >= 1) {
+                            error = new Error('Credentials incorrect');
+                          } else {
+                            self.logAttempts[i].attempts += 1;
+                            device._auth.des = serviceType;
+                            device._auth.sn = ch.Nonce;
+                            device._auth.realm = ch.Realm;
+                            device._auth.auth = device._calcAuthDigest(
+                              device._auth.uid,
+                              device._auth.pwd,
+                              device._auth.realm,
+                              device._auth.sn
+                            );
+                            device._auth.chCount++;
+                            that._sendSOAPActionRequest(
+                              device,
+                              url,
+                              serviceType,
+                              action,
+                              inArguments,
+                              outArguments,
+                              vars,
+                              callback
+                            );
+                            return;
+                          }
                         }
                       }
+                    } else {
+                      self.logAttempts.push({ service: serviceType, action: action, attempts: 1 });
+                      device._auth.sn = ch.Nonce;
+                      device._auth.realm = ch.Realm;
+                      device._auth.auth = device._calcAuthDigest(
+                        device._auth.uid,
+                        device._auth.pwd,
+                        device._auth.realm,
+                        device._auth.sn
+                      );
+                      device._auth.chCount++;
+                      // Repeat request.
+                      that._sendSOAPActionRequest(
+                        device,
+                        url,
+                        serviceType,
+                        action,
+                        inArguments,
+                        outArguments,
+                        vars,
+                        callback
+                      );
+                      return;
                     }
-                  } else {
-                    self.logAttempts.push({ service: serviceType, action: action, attempts: 1 });
-                    device._auth.sn = ch.Nonce;
-                    device._auth.realm = ch.Realm;
+                  } else if (header['h:NextChallenge']) {
+                    var nx = header['h:NextChallenge'];
+                    for (const i in self.logAttempts) {
+                      if ((self.logAttempts[i].service == serviceType && self.logAttempts[i].action == action)) {
+                        self.logAttempts[i].attempts = 0;
+                      }
+                    }
+                    device._auth.chCount = 0;
+                    device._auth.sn = nx.Nonce;
+                    device._auth.realm = nx.Realm;
                     device._auth.auth = device._calcAuthDigest(
                       device._auth.uid,
                       device._auth.pwd,
                       device._auth.realm,
                       device._auth.sn
                     );
-                    device._auth.chCount++;
-                    // Repeat request.
-                    that._sendSOAPActionRequest(
-                      device,
-                      url,
-                      serviceType,
-                      action,
-                      inArguments,
-                      outArguments,
-                      vars,
-                      callback
-                    );
-                    return;
                   }
-                } else if (header['h:NextChallenge']) {
-                  var nx = header['h:NextChallenge'];
-                  for (const i in self.logAttempts) {
-                    if ((self.logAttempts[i].service == serviceType && self.logAttempts[i].action == action)) {
-                      self.logAttempts[i].attempts = 0;
+                }
+                if (env['s:Body']) {
+                  var body = env['s:Body'];
+                  if (body['u:' + action + 'Response']) {
+                    var responseVars = body['u:' + action + 'Response'];
+                    if (outArguments) {
+                      outArguments.forEach(function(arg) {
+                        res[arg] = responseVars[arg];
+                      });
                     }
-                  }
-                  device._auth.chCount = 0;
-                  device._auth.sn = nx.Nonce;
-                  device._auth.realm = nx.Realm;
-                  device._auth.auth = device._calcAuthDigest(
-                    device._auth.uid,
-                    device._auth.pwd,
-                    device._auth.realm,
-                    device._auth.sn
-                  );
-                }
-              }
-
-              if (env['s:Body']) {
-                var body = env['s:Body'];
-                if (body['u:' + action + 'Response']) {
-                  var responseVars = body['u:' + action + 'Response'];
-                  if (outArguments) {
-                    outArguments.forEach(function(arg) {
-                      res[arg] = responseVars[arg];
-                    });
-                  }
-                } else if (body['s:Fault']) {
-                  var fault = body['s:Fault'];
-                  //let errorStatus = body['s:Fault'].detail.UPnPError.errorDescription;
-                  let newFault = body['s:Fault'];
-                  error = {
-                    response: response ? response.statusMessage : 'No message',
-                    responseCode: response ? response.statusCode : 'No code',
-                    tr064: newFault ? newFault.detail.UPnPError.errorDescription : 'No message',
-                    tr064code: newFault ? newFault.detail.UPnPError.errorCode : 'No code',
-                    fault: newFault ? newFault.faultstring : 'No message',
-                    faultcode: newFault ? newFault.faultcode : 'No code',
-                    serviceType: serviceType,
-                    action: action
-                  };
-                  res = fault;
-                }
-              }
-              callback(error, res);
-            }
-          );
-        } else {
-          if(response){
-            parseString(response.body,{explicitArray: false,}, function (err, result) {
-              if(!err){
-                let env = result['s:Envelope'];  
-                if(env['s:Body']){
-                  let newBody = env['s:Body'];
-                  if(newBody['s:Fault']){
-                    let fault = newBody['s:Fault'];
+                  } else if (body['s:Fault']) {
+                    var fault = body['s:Fault'];
+                    //let errorStatus = body['s:Fault'].detail.UPnPError.errorDescription;
+                    let newFault = body['s:Fault'];
                     error = {
-                      error: error ? error.errno : 'No message',
-                      errorCode: error ? error.errno : 'No code',
-                      tr064: fault ? fault.detail.UPnPError.errorDescription : 'No message',
-                      tr064code: fault ? fault.detail.UPnPError.errorCode : 'No code',
-                      fault: fault ? fault.faultstring : 'No message',
-                      faultcode: fault ? fault.faultcode : 'No code',
+                      response: response ? response.statusMessage : 'No message',
+                      responseCode: response ? response.statusCode : 'No code',
+                      tr064: newFault ? newFault.detail.UPnPError.errorDescription : 'No message',
+                      tr064code: newFault ? newFault.detail.UPnPError.errorCode : 'No code',
+                      fault: newFault ? newFault.faultstring : 'No message',
+                      faultcode: newFault ? newFault.faultcode : 'No code',
                       serviceType: serviceType,
                       action: action
                     };
+                    res = fault;
                   }
-                }  
-              } else {
-                error = {
-                  error: error ? error.errno : 'No message',
-                  errorCode: error ? error.errno : 'No code',
-                  serviceType: serviceType,
-                  action: action
-                };
+                }
+                callback(error, res);
               }
-            });
-            callback(error, null);
+            );
           } else {
-            error = {
-              error: error ? error.code : 'No message',
-              errorCode: error ? error.code : 'No code',
-              serviceType: serviceType,
-              action: action
-            };
-            callback(error, null);
+            if(response){
+              parseString(response.body,{explicitArray: false,}, function (err, result) {
+                if(!err){
+                  let env = result['s:Envelope'];  
+                  if(env['s:Body']){
+                    let newBody = env['s:Body'];
+                    if(newBody['s:Fault']){
+                      let fault = newBody['s:Fault'];
+                      error = {
+                        error: error ? error.errno : 'No message',
+                        errorCode: error ? error.errno : 'No code',
+                        tr064: fault ? fault.detail.UPnPError.errorDescription : 'No message',
+                        tr064code: fault ? fault.detail.UPnPError.errorCode : 'No code',
+                        fault: fault ? fault.faultstring : 'No message',
+                        faultcode: fault ? fault.faultcode : 'No code',
+                        serviceType: serviceType,
+                        action: action
+                      };
+                    }
+                  }  
+                } else {
+                  error = {
+                    error: error ? error.errno : 'No message',
+                    errorCode: error ? error.errno : 'No code',
+                    serviceType: serviceType,
+                    action: action
+                  };
+                }
+              });
+              callback(error, null);
+            } else {
+              error = {
+                error: error ? error.code : 'No message',
+                errorCode: error ? error.code : 'No code',
+                serviceType: serviceType,
+                action: action
+              };
+              callback(error, null);
+            }
           }
         }
-      }
-    );
-  }
+      );
+    } else {
+      setTimeout(function(){
+        self._sendSOAPActionRequest(
+          device,
+          url,
+          serviceType,
+          action,
+          inArguments,
+          outArguments,
+          vars,
+          callback
+        );
+      },1000);         
+    }
+  } 
 }
 
 exports.Service = Service;
