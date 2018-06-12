@@ -135,22 +135,19 @@ class Service{
 
   _sendSOAPActionRequest(device,url,serviceType,action,inArguments,outArguments,vars,callback){
     const self = this;
-    
     if(!Object.keys(self.waitForAuth).length||
-    (serviceType	==	self.waitForAuth.serviceType&&
-     action			==	self.waitForAuth.action&&
-     vars			==	self.waitForAuth.vars&&
-     url			==	self.waitForAuth.url)&&
-     inArguments 	== 	self.waitForAuth.inArguments&&
-     outArguments 	== 	self.waitForAuth.outArguments){
-    
+    (serviceType==self.waitForAuth.serviceType&&
+     action==self.waitForAuth.action&&
+     vars==self.waitForAuth.vars&&
+     url==self.waitForAuth.url&&
+     inArguments==self.waitForAuth.inArguments&&
+     outArguments==self.waitForAuth.outArguments&&
+     device.meta.host==self.waitForAuth.host)){
       var head = '';
       if (device._auth.uid) {
       // Content Level Authentication
         if (device._auth.auth) {
-      
           self.waitForAuth = {};  
-      
           head = '<s:Header>' +
                '<h:ClientAuth xmlns:h="http://soap-authentication.org/digest/2001/10/"' +
                's:mustUnderstand="1">' +
@@ -169,16 +166,15 @@ class Service{
                '</h:ClientAuth>' +
                '</s:Header>';
         } else {
-      
           self.waitForAuth = {
             serviceType:serviceType, 
             action:action,
             vars:vars,
             url:url,
             inArguments:inArguments,
-            outArguments:outArguments
+            outArguments:outArguments,
+            host: device.meta.host
           };  
-      
           // First Auth
           head = ' <s:Header>' +
                '<h:InitChallenge xmlns:h="http://soap-authentication.org/digest/2001/10/"' +
@@ -193,7 +189,6 @@ class Service{
                '</s:Header>';
         }
       }
-
       var body = '<?xml version="1.0" encoding="utf-8"?>' +
                '<s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s=" http://schemas.xmlsoap.org/soap/envelope/">' +
                head +
@@ -203,15 +198,12 @@ class Service{
                ' xmlns:u="' +
                serviceType +
                '">';
-
       for (var i in vars) {
         body += '<' + vars[i].name + '>';
         body += vars[i].value;
         body += '</' + vars[i].name + '>';
       }
-
       body = body + '</u:' + action + '>' + '</s:Body>' + '</s:Envelope>';
-
       var port = 0,
         proto = '',
         agentOptions = null;
@@ -338,6 +330,7 @@ class Service{
                 if (env['s:Body']) {
                   var body = env['s:Body'];
                   if (body['u:' + action + 'Response']) {
+                    self.waitForAuth = {};
                     var responseVars = body['u:' + action + 'Response'];
                     if (outArguments) {
                       outArguments.forEach(function(arg) {
@@ -419,7 +412,7 @@ class Service{
           vars,
           callback
         );
-      },1000);         
+      },1000);    
     }
   } 
 }
