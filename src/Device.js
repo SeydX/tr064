@@ -34,31 +34,6 @@ class Device {
     this._auth.chCount = 0;
   }
 
-  startTransaction(cb){
-    var that = this;
-    var sessionID = this.uuid();
-    this._startTransaction(sessionID, function(err) {
-      if (!err) {
-        that._isTransaction = true;
-        cb(null, that);
-      } else {
-        cb(err, null);
-      }
-    });
-  }
-
-  stopTransaction(cb){
-    var that = this;
-    this._stopTransaction(function(err) {
-      if (!err) {
-        that._isTransaction = false;
-        cb(null, that);
-      } else {
-        cb(err, null);
-      }
-    });
-  }
-
   startEncryptedCommunication(){
     const self=this;
 
@@ -147,33 +122,6 @@ class Device {
     MD5 = crypto.createHash('md5');
     MD5.update(secret + ':' + sn);
     return MD5.digest('hex');
-  }
-
-  _startTransaction(sessionID, cb){
-    var devConfig = this.services['urn:dslforum-org:service:DeviceConfig:1'];
-    devConfig.actions.ConfigurationStarted({ NewSessionID: sessionID }, function(err) {
-      if (!err) {
-        cb(null);
-      } else {
-        cb(new Error('Transactions are not supported for this device.'));
-      }
-    });
-  }
-
-  _stopTransaction(cb){
-    var devConfig = this.services['urn:dslforum-org:service:DeviceConfig:1'];
-    devConfig.actions.ConfigurationFinished(function(err) {
-      if (!err) {
-        cb(null);
-      } else {
-        cb(new Error('Transactions are not supported for this device.'));
-      }
-    });
-  }
-
-  uuid(a){
-    const self = this;
-    return a ? ( a ^ ((Math.random() * 16) >> (a / 4))).toString(16):([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g,self.uuid);
   }
 }
 
